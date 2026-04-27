@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: claude-coach-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: ALLOWED_ORIGIN
+        value: "*"
+      - key: ANTHROPIC_API_KEY
+        sync: false

@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Claude Capability Coach",
+  "description": "Thinking layer sidebar for Claude.ai prompt coaching.",
+  "version": "0.1.0",
+  "permissions": [],
+  "host_permissions": ["https://claude.ai/*", "https://*/*", "http://localhost:*/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["sidebar.html", "assets/*"],
+      "matches": ["https://claude.ai/*"]
+    }
+  ]
+}
