@@ -357,8 +357,8 @@ ${skillLines}
           </p>
           <div className="card compact">
             <p><strong>Flow options</strong></p>
-            <p className="subtle">Quick prompt: Start -> Input -> Intent -> Prompt Output</p>
-            <p className="subtle">Full workflow: Start -> Input -> Questions -> Intent -> Prompt -> Skill files</p>
+            <p className="subtle">Quick prompt: Start &rarr; Input &rarr; Intent &rarr; Prompt Output</p>
+            <p className="subtle">Full workflow: Start &rarr; Input &rarr; Questions &rarr; Intent &rarr; Prompt &rarr; Skill files</p>
           </div>
           <button onClick={onStart}>Start</button>
         </div>
@@ -475,7 +475,7 @@ ${skillLines}
               Export Session Summary
             </button>
           </div>
-          <button onClick={() => gotoStep("skill-decision")}>Looks good -> Continue</button>
+          <button onClick={() => gotoStep("skill-decision")}>Looks good &rarr; Continue</button>
         </div>
       )}
 
