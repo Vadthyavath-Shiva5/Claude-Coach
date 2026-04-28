@@ -61,6 +61,28 @@ function downloadFile(filename: string, content: string): void {
   URL.revokeObjectURL(url);
 }
 
+async function copyText(value: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      textarea.setAttribute("readonly", "true");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
 export default function SidebarApp() {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE);
   const [navStack, setNavStack] = useState<CoachStep[]>(["home"]);
@@ -419,8 +441,12 @@ ${state.generatedPrompt || "N/A"}
           <div className="buttonRow">
             <button
               onClick={async () => {
-                await navigator.clipboard.writeText(state.generatedPrompt);
-                setStatusMessage("Copied. Paste into Claude and execute.");
+                const ok = await copyText(state.generatedPrompt);
+                setStatusMessage(
+                  ok
+                    ? "Copied. Paste into Claude and execute."
+                    : "Copy failed. Please manually select and copy the prompt text."
+                );
               }}
               disabled={!state.generatedPrompt}
             >

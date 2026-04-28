@@ -30,9 +30,36 @@ function normalizeModelCandidates(inputModel?: string): string[] {
 }
 
 function extractJson(text: string): unknown {
-  const fenced = text.match(/```json\s*([\s\S]*?)```/i);
-  const candidate = fenced ? fenced[1] : text;
-  return JSON.parse(candidate.trim());
+  const trimmed = text.trim();
+
+  const fenced = trimmed.match(/```\s*json\s*([\s\S]*?)```/i) || trimmed.match(/```([\s\S]*?)```/);
+  if (fenced?.[1]) {
+    return JSON.parse(fenced[1].trim());
+  }
+
+  // Try direct parse first.
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // continue to structural extraction
+  }
+
+  // Try extracting object/array payload from mixed text.
+  const firstObj = trimmed.indexOf("{");
+  const lastObj = trimmed.lastIndexOf("}");
+  if (firstObj >= 0 && lastObj > firstObj) {
+    const candidate = trimmed.slice(firstObj, lastObj + 1).trim();
+    return JSON.parse(candidate);
+  }
+
+  const firstArr = trimmed.indexOf("[");
+  const lastArr = trimmed.lastIndexOf("]");
+  if (firstArr >= 0 && lastArr > firstArr) {
+    const candidate = trimmed.slice(firstArr, lastArr + 1).trim();
+    return JSON.parse(candidate);
+  }
+
+  throw new Error("Claude response did not contain valid JSON content.");
 }
 
 async function callClaude(system: string, user: string): Promise<string> {
