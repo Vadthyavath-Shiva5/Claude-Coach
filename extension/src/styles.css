@@ -20,6 +20,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  background: #f8fafc;
 }
 
 .card {
@@ -31,6 +32,13 @@ body {
 
 .card.compact {
   padding: 10px 12px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
 }
 
 h1,
@@ -83,6 +91,39 @@ label {
   gap: 6px;
 }
 
+.buttonColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.stepTag {
+  font-size: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: #6b7280;
+  background: #ffffff;
+}
+
+.visitedStep {
+  border-color: #9ca3af;
+  color: #374151;
+}
+
+.activeStep {
+  border-color: #111827;
+  color: #ffffff;
+  background: #111827;
+}
+
 button,
 select,
 textarea {
@@ -92,14 +133,29 @@ textarea {
 }
 
 button {
-  background: #f3f4f6;
-  padding: 6px 10px;
+  background: #111827;
+  color: #ffffff;
+  padding: 8px 12px;
   cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+button:hover {
+  opacity: 0.92;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 button.active {
   background: #111827;
   color: #ffffff;
+}
+
+.secondaryButton {
+  background: #f3f4f6;
+  color: #111827;
 }
 
 textarea,

@@ -2,6 +2,7 @@ import { buildIntent, generatePrompt, isComplexPrompt, recommendSkills } from ".
 import type { Answers, IntentModel, SkillSuggestion } from "./types";
 
 const API_BASE_URL = import.meta.env.VITE_INTELLIGENCE_API_BASE_URL as string | undefined;
+const INTELLIGENCE_API_KEY = import.meta.env.VITE_INTELLIGENCE_API_KEY as string | undefined;
 
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   if (!API_BASE_URL) {
@@ -10,7 +11,10 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(INTELLIGENCE_API_KEY ? { "x-api-key": INTELLIGENCE_API_KEY } : {})
+    },
     body: JSON.stringify(body)
   });
 

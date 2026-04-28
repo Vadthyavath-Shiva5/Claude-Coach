@@ -2,22 +2,52 @@
 
 Chrome extension frontend for `Claude Capability Coach` that activates on `claude.ai`.
 
-## Implemented MVP
+## Implemented UX
 
 - Manifest V3 extension setup
 - Content script:
   - detects `claude.ai`
-  - injects fixed right sidebar (`360px`)
-  - shifts page with `margin-right`
-  - reads prompt from `textarea`
-  - sends prompt events to sidebar app
-  - fallback mode when textarea is not found
+  - injects fixed right sidebar (`360px`) hidden by default
+  - injects floating `Coach` toggle button
+  - smooth slide in/out behavior (`transform` + `transition`)
+  - no page margin push and no auto textarea reading
 - Sidebar React app (TypeScript):
-  - state-driven coaching flow (idle → detection → questions → intent editor → prompt output → skill suggestions → action)
-  - clarification questions (frequency, format, detail level)
-  - editable structured intent
-  - improved prompt generation + copy action
-  - keyword-based skill suggestions (top 3)
+  - guided state-machine flow:
+    - Home
+    - Chat Input
+    - Questions
+    - Intent Editor
+    - Prompt Output
+    - Skill Decision
+    - Skill Generator
+  - navigation stack with Back support
+  - manual task input (user controlled)
+  - editable structured intent and prompt generation
+  - copy + insert prompt actions
+  - skill file preview and download (`SKILL.md`, `instructions.md`)
+  - visual stepper and progress indicators
+  - session export (`session-summary.md`)
+
+## End User Guide
+
+1. Open `claude.ai`
+2. Click floating `Coach` button
+3. Click `Start`
+4. Describe your task and submit
+5. Answer questions (if shown)
+6. Edit intent and click `Next`
+7. Copy or insert generated prompt into Claude
+8. Optionally generate and download reusable skill files
+
+### How to use outputs
+
+- Generated prompt:
+  - paste into Claude and run
+  - tweak constraints/output format for better iterations
+- `SKILL.md`:
+  - store reusable workflow definition for similar tasks
+- `instructions.md`:
+  - store operating checklist for repeatable execution
 
 ## Local Build
 
@@ -54,8 +84,11 @@ Provide:
 - auth mechanism (none / API key / bearer token)
 - request/response JSON contracts for each endpoint
 
+The app prefers backend intelligence APIs and falls back to local logic only if backend is unavailable.
+
 ## Environment
 
 - Create `extension/.env` from `extension/.env.example`
 - Set:
   - `VITE_INTELLIGENCE_API_BASE_URL`
+  - `VITE_INTELLIGENCE_API_KEY` (optional shared key)

@@ -1,19 +1,14 @@
 const SIDEBAR_ID = "coach-sidebar";
+const TOGGLE_ID = "coach-toggle-button";
 const SIDEBAR_WIDTH = 360;
 const SIDEBAR_ORIGIN = "claude-capability-coach";
-const PROMPT_EVENT = "coach:prompt";
-const FALLBACK_EVENT = "coach:manual-input-required";
-const ACTIVATE_EVENT = "coach:activate";
 const INSERT_PROMPT_EVENT = "coach:insert-prompt";
-
-let isCoachActive = false;
-let boundTextarea: HTMLTextAreaElement | null = null;
 
 function isClaudePage(): boolean {
   return window.location.hostname.includes("claude.ai");
 }
 
-function injectSidebar(): HTMLIFrameElement | null {
+function injectSidebar(): HTMLIFrameElement {
   if (document.getElementById(SIDEBAR_ID)) {
     return document.getElementById(SIDEBAR_ID) as HTMLIFrameElement;
   }
@@ -31,49 +26,46 @@ function injectSidebar(): HTMLIFrameElement | null {
   iframe.style.border = "0";
   iframe.style.borderLeft = "1px solid #e4e4e7";
   iframe.style.boxShadow = "-6px 0 18px rgba(0,0,0,0.06)";
+  iframe.style.transform = "translateX(100%)";
+  iframe.style.transition = "transform 0.3s ease";
   iframe.title = "Claude Capability Coach";
+  iframe.dataset.open = "false";
 
   document.body.appendChild(iframe);
-  document.body.style.marginRight = `${SIDEBAR_WIDTH}px`;
   return iframe;
 }
 
-function postCoachEvent(type: string, payload: unknown): void {
-  window.postMessage(
-    {
-      source: SIDEBAR_ORIGIN,
-      type,
-      payload
-    },
-    "*"
-  );
-}
-
-function attachPromptCapture(): void {
-  if (!isCoachActive) {
-    return;
+function injectToggleButton(sidebar: HTMLIFrameElement): HTMLButtonElement {
+  if (document.getElementById(TOGGLE_ID)) {
+    return document.getElementById(TOGGLE_ID) as HTMLButtonElement;
   }
 
-  const textarea = document.querySelector("textarea");
-  if (!textarea) {
-    postCoachEvent(FALLBACK_EVENT, { reason: "textarea-not-found" });
-    return;
-  }
+  const button = document.createElement("button");
+  button.id = TOGGLE_ID;
+  button.textContent = "Coach";
+  button.style.position = "fixed";
+  button.style.right = "20px";
+  button.style.top = "50%";
+  button.style.transform = "translateY(-50%)";
+  button.style.width = "54px";
+  button.style.height = "54px";
+  button.style.borderRadius = "999px";
+  button.style.border = "1px solid #d1d5db";
+  button.style.background = "#111827";
+  button.style.color = "#ffffff";
+  button.style.fontWeight = "600";
+  button.style.cursor = "pointer";
+  button.style.zIndex = "10000";
+  button.style.boxShadow = "0 8px 18px rgba(0,0,0,0.2)";
 
-  const target = textarea as HTMLTextAreaElement;
-  if (boundTextarea === target) {
-    postCoachEvent(PROMPT_EVENT, { prompt: target.value });
-    return;
-  }
-
-  boundTextarea = target;
-  postCoachEvent(PROMPT_EVENT, { prompt: target.value });
-  target.addEventListener("input", () => {
-    if (!isCoachActive) {
-      return;
-    }
-    postCoachEvent(PROMPT_EVENT, { prompt: target.value });
+  button.addEventListener("click", () => {
+    const isOpen = sidebar.dataset.open === "true";
+    sidebar.dataset.open = isOpen ? "false" : "true";
+    sidebar.style.transform = isOpen ? "translateX(100%)" : "translateX(0)";
   });
+
+  document.body.appendChild(button);
+  return button;
 }
 
 function insertPromptIntoClaude(prompt: string): void {
@@ -95,13 +87,6 @@ function attachControlListener(): void {
       return;
     }
 
-    if (data.type === ACTIVATE_EVENT) {
-      isCoachActive = Boolean(data.payload?.active);
-      if (isCoachActive) {
-        attachPromptCapture();
-      }
-    }
-
     if (data.type === INSERT_PROMPT_EVENT) {
       insertPromptIntoClaude(String(data.payload?.prompt ?? ""));
     }
@@ -113,7 +98,8 @@ function bootstrap(): void {
     return;
   }
 
-  injectSidebar();
+  const sidebar = injectSidebar();
+  injectToggleButton(sidebar);
   attachControlListener();
 }
 
