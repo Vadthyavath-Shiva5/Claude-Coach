@@ -17,7 +17,18 @@ export interface IntentModel {
   frequency: FrequencyOption;
 }
 
-const COMPLEX_KEYWORDS = ["analyse", "analyze", "generate", "create", "report", "weekly"];
+const COMPLEX_KEYWORDS = [
+  "analyse",
+  "analyze",
+  "generate",
+  "create",
+  "report",
+  "weekly",
+  "ppt",
+  "presentation",
+  "deck",
+  "slides"
+];
 const SIMPLE_KEYWORDS = ["what", "when", "where", "who", "define", "meaning", "explain"];
 
 export interface AnalyzeResult {

@@ -10,6 +10,13 @@ import {
   recommendSkills
 } from "./coach-logic.js";
 import {
+  buildIntentWithClaude,
+  classifyPromptWithClaude,
+  generateSkillPackageWithClaude,
+  recommendSkillsWithClaude,
+  restructurePromptWithClaude
+} from "./claude-client.js";
+import {
   analyzeIntentSchema,
   clarifyIntentSchema,
   generateSkillSchema,
@@ -25,6 +32,7 @@ const allowedOrigins = allowedOrigin
   .split(",")
   .map((item) => item.trim())
   .filter(Boolean);
+const useClaudeIntelligence = Boolean(process.env.ANTHROPIC_API_KEY);
 
 app.use(
   cors({
@@ -76,11 +84,34 @@ app.post("/v1/intent/analyze", asyncHandler((req, res) => {
   }
 
   const { prompt } = parsed.data;
-  const analysis = analyzePrompt(prompt);
-  res.json({
-    ...analysis,
-    promptLength: prompt.trim().split(/\s+/).filter(Boolean).length
-  });
+  const run = async () => {
+    if (useClaudeIntelligence) {
+      return classifyPromptWithClaude(prompt);
+    }
+    return analyzePrompt(prompt);
+  };
+
+  return run()
+    .then((analysis) =>
+      res.json({
+        ...analysis,
+        promptLength: prompt.trim().split(/\s+/).filter(Boolean).length
+      })
+    )
+    .catch((error) => {
+      if (useClaudeIntelligence) {
+        res.status(502).json({
+          error: "Intelligence provider failure",
+          message: error instanceof Error ? error.message : "Claude classification failed."
+        });
+        return;
+      }
+      const analysis = analyzePrompt(prompt);
+      res.json({
+        ...analysis,
+        promptLength: prompt.trim().split(/\s+/).filter(Boolean).length
+      });
+    });
 }));
 
 app.post("/v1/intent/clarify", asyncHandler((req, res) => {
@@ -89,8 +120,25 @@ app.post("/v1/intent/clarify", asyncHandler((req, res) => {
     res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
     return;
   }
-  const intent = buildIntent(parsed.data.prompt, parsed.data.answers);
-  res.json({ intent });
+  const run = async () => {
+    if (useClaudeIntelligence) {
+      return buildIntentWithClaude(parsed.data.prompt, parsed.data.answers);
+    }
+    return buildIntent(parsed.data.prompt, parsed.data.answers);
+  };
+
+  return run()
+    .then((intent) => res.json({ intent }))
+    .catch((error) => {
+      if (useClaudeIntelligence) {
+        res.status(502).json({
+          error: "Intelligence provider failure",
+          message: error instanceof Error ? error.message : "Claude intent builder failed."
+        });
+        return;
+      }
+      res.json({ intent: buildIntent(parsed.data.prompt, parsed.data.answers) });
+    });
 }));
 
 app.post("/v1/prompt/restructure", asyncHandler((req, res) => {
@@ -99,7 +147,25 @@ app.post("/v1/prompt/restructure", asyncHandler((req, res) => {
     res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
     return;
   }
-  res.json({ improvedPrompt: generatePrompt(parsed.data.intent) });
+  const run = async () => {
+    if (useClaudeIntelligence) {
+      return restructurePromptWithClaude(parsed.data.intent);
+    }
+    return generatePrompt(parsed.data.intent);
+  };
+
+  return run()
+    .then((improvedPrompt) => res.json({ improvedPrompt }))
+    .catch((error) => {
+      if (useClaudeIntelligence) {
+        res.status(502).json({
+          error: "Intelligence provider failure",
+          message: error instanceof Error ? error.message : "Claude prompt restructuring failed."
+        });
+        return;
+      }
+      res.json({ improvedPrompt: generatePrompt(parsed.data.intent) });
+    });
 }));
 
 app.post("/v1/skills/recommend", asyncHandler((req, res) => {
@@ -108,7 +174,25 @@ app.post("/v1/skills/recommend", asyncHandler((req, res) => {
     res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
     return;
   }
-  res.json({ skills: recommendSkills(parsed.data.prompt) });
+  const run = async () => {
+    if (useClaudeIntelligence) {
+      return recommendSkillsWithClaude(parsed.data.prompt);
+    }
+    return recommendSkills(parsed.data.prompt);
+  };
+
+  return run()
+    .then((skills) => res.json({ skills }))
+    .catch((error) => {
+      if (useClaudeIntelligence) {
+        res.status(502).json({
+          error: "Intelligence provider failure",
+          message: error instanceof Error ? error.message : "Claude skill recommendation failed."
+        });
+        return;
+      }
+      res.json({ skills: recommendSkills(parsed.data.prompt) });
+    });
 }));
 
 app.post("/v1/skills/generate", asyncHandler((req, res) => {
@@ -117,7 +201,25 @@ app.post("/v1/skills/generate", asyncHandler((req, res) => {
     res.status(400).json({ error: "Invalid payload", details: parsed.error.flatten() });
     return;
   }
-  res.json(generateSkillFiles(parsed.data.skillName || "", parsed.data.prompt || ""));
+  const run = async () => {
+    if (useClaudeIntelligence) {
+      return generateSkillPackageWithClaude(parsed.data.skillName || "", parsed.data.prompt || "");
+    }
+    return generateSkillFiles(parsed.data.skillName || "", parsed.data.prompt || "");
+  };
+
+  return run()
+    .then((payload) => res.json(payload))
+    .catch((error) => {
+      if (useClaudeIntelligence) {
+        res.status(502).json({
+          error: "Intelligence provider failure",
+          message: error instanceof Error ? error.message : "Claude skill generation failed."
+        });
+        return;
+      }
+      res.json(generateSkillFiles(parsed.data.skillName || "", parsed.data.prompt || ""));
+    });
 }));
 
 app.use((_req, res) => {

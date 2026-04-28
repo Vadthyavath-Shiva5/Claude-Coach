@@ -8,7 +8,7 @@ import {
   restructurePrompt,
   type AnalyzeIntentResponse
 } from "./api";
-import { buildIntent, generatePrompt } from "./logic";
+import { buildIntent } from "./logic";
 import type { Answers, CoachState, CoachStep, IntentModel, SkillSuggestion } from "./types";
 
 type Action =
@@ -149,6 +149,7 @@ export default function SidebarApp() {
     setIsBusy(true);
     try {
       dispatch({ type: "SET_PROMPT", prompt });
+      dispatch({ type: "SET_INTENT", intent: buildIntent(prompt, {}) });
       const result = await analyzeIntent(prompt);
       setAnalysis(result);
       setQuestionIndex(0);
@@ -158,7 +159,7 @@ export default function SidebarApp() {
         gotoStep("questions");
       }
     } catch {
-      setStatusMessage("Intelligence layer unavailable. Please check backend and retry.");
+      setStatusMessage("Intelligence layer unavailable. Check backend deploy/API key/model settings and retry.");
     } finally {
       setIsBusy(false);
     }
@@ -196,9 +197,7 @@ export default function SidebarApp() {
       dispatch({ type: "SET_SKILLS", skills: skillResult.skills });
       gotoStep("prompt-output");
     } catch {
-      dispatch({ type: "SET_GENERATED_PROMPT", generatedPrompt: generatePrompt(state.intent) });
-      setStatusMessage("Prompt generated with fallback. Verify backend intelligence for best quality.");
-      gotoStep("prompt-output");
+      setStatusMessage("Prompt generation failed from intelligence layer. Please retry after backend check.");
     } finally {
       setIsBusy(false);
     }
@@ -314,7 +313,7 @@ ${state.generatedPrompt || "N/A"}
           <h3>Simple Task Detected</h3>
           <p>{analysis?.reason}</p>
           <div className="buttonRow">
-            <button onClick={() => gotoStep("prompt-output")}>Generate Quick Prompt Anyway</button>
+            <button onClick={() => void onGeneratePrompt()}>Generate Prompt Anyway</button>
             <button className="secondaryButton" onClick={restartFlow}>
               End Session
             </button>
@@ -408,13 +407,14 @@ ${state.generatedPrompt || "N/A"}
       {currentStep === "prompt-output" && (
         <div className="card stack">
           <h3>Generated Prompt</h3>
-          <pre>{state.generatedPrompt || generatePrompt(state.intent)}</pre>
+          <pre>{state.generatedPrompt}</pre>
           <div className="buttonRow">
             <button
               onClick={async () => {
-                await navigator.clipboard.writeText(state.generatedPrompt || generatePrompt(state.intent));
+                await navigator.clipboard.writeText(state.generatedPrompt);
                 setStatusMessage("Copied. Paste into Claude and execute.");
               }}
+              disabled={!state.generatedPrompt}
             >
               Copy to paste into Claude
             </button>
@@ -471,7 +471,7 @@ ${state.generatedPrompt || "N/A"}
               </div>
               <div className="card compact">
                 <p><strong>How to upload</strong></p>
-                <p className="subtle">- Claude: Customize -> Skills -> Upload ZIP -> Enable skill.</p>
+                <p className="subtle">- Claude: Customize &rarr; Skills &rarr; Upload ZIP &rarr; Enable skill.</p>
                 <p className="subtle">- Project option: create a project and add knowledge/instruction files.</p>
               </div>
             </>
