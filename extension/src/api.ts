@@ -18,7 +18,22 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   });
 
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+    let details = "";
+    try {
+      const errorJson = (await response.json()) as { error?: string; message?: string };
+      details = errorJson.message || errorJson.error || "";
+    } catch {
+      try {
+        details = await response.text();
+      } catch {
+        details = "";
+      }
+    }
+    throw new Error(
+      details
+        ? `API request failed (${response.status}): ${details}`
+        : `API request failed (${response.status}).`
+    );
   }
   return (await response.json()) as T;
 }

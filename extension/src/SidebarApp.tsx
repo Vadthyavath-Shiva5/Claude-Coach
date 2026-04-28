@@ -158,8 +158,12 @@ export default function SidebarApp() {
       } else {
         gotoStep("questions");
       }
-    } catch {
-      setStatusMessage("Intelligence layer unavailable. Check backend deploy/API key/model settings and retry.");
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : "Intelligence layer unavailable. Check backend deploy/API key/model settings and retry."
+      );
     } finally {
       setIsBusy(false);
     }
@@ -179,8 +183,8 @@ export default function SidebarApp() {
       const result = await clarifyIntent(state.prompt, answers);
       dispatch({ type: "SET_INTENT", intent: result.intent });
       gotoStep("intent-editor");
-    } catch {
-      setStatusMessage("Failed to build intent. Please retry.");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Failed to build intent. Please retry.");
     } finally {
       setIsBusy(false);
     }
@@ -196,8 +200,12 @@ export default function SidebarApp() {
       dispatch({ type: "SET_GENERATED_PROMPT", generatedPrompt: promptResult.improvedPrompt });
       dispatch({ type: "SET_SKILLS", skills: skillResult.skills });
       gotoStep("prompt-output");
-    } catch {
-      setStatusMessage("Prompt generation failed from intelligence layer. Please retry after backend check.");
+    } catch (error) {
+      setStatusMessage(
+        error instanceof Error
+          ? error.message
+          : "Prompt generation failed from intelligence layer. Please retry after backend check."
+      );
     } finally {
       setIsBusy(false);
     }
@@ -209,8 +217,8 @@ export default function SidebarApp() {
       const response = await generateSkillFiles(state.skills[0]?.name || "Custom Skill", state.prompt);
       setSkillPackage(response);
       setStatusMessage("Professional skill package generated.");
-    } catch {
-      setStatusMessage("Skill generation failed. Check backend and try again.");
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "Skill generation failed. Check backend and try again.");
     } finally {
       setIsBusy(false);
     }

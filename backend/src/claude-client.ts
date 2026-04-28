@@ -4,6 +4,31 @@ interface ClaudeMessageResponse {
   content?: Array<{ type: string; text?: string }>;
 }
 
+function normalizeModelCandidates(inputModel?: string): string[] {
+  const raw = (inputModel || "").trim();
+  const normalized = raw.toLowerCase().replace(/\s+/g, " ");
+
+  const mapped: string[] = [];
+  if (!raw) {
+    mapped.push("claude-sonnet-4-5");
+  } else if (
+    normalized === "sonnet 4.5" ||
+    normalized === "claude sonnet 4.5" ||
+    normalized === "claude-sonnet-4-5" ||
+    normalized === "sonnet-4-5" ||
+    normalized === "sonnet4.5"
+  ) {
+    mapped.push("claude-sonnet-4-5");
+  } else {
+    mapped.push(raw);
+  }
+
+  // Safety fallback chain in case account/region model availability differs.
+  mapped.push("claude-sonnet-4-5");
+  mapped.push("claude-3-5-sonnet-latest");
+  return Array.from(new Set(mapped));
+}
+
 function extractJson(text: string): unknown {
   const fenced = text.match(/```json\s*([\s\S]*?)```/i);
   const candidate = fenced ? fenced[1] : text;
@@ -16,36 +41,44 @@ async function callClaude(system: string, user: string): Promise<string> {
     throw new Error("ANTHROPIC_API_KEY is not configured.");
   }
 
-  const model = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
+  const configuredModel = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
   const maxTokens = Number(process.env.ANTHROPIC_MAX_TOKENS || 1200);
+  const modelsToTry = normalizeModelCandidates(configuredModel);
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model,
-      max_tokens: maxTokens,
-      temperature: 0.2,
-      system,
-      messages: [{ role: "user", content: user }]
-    })
-  });
+  let lastError = "Claude API request failed.";
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(`Claude API failed (${response.status}): ${err}`);
+  for (const model of modelsToTry) {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        temperature: 0.2,
+        system,
+        messages: [{ role: "user", content: user }]
+      })
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      lastError = `Claude API failed (${response.status}) on model ${model}: ${err}`;
+      continue;
+    }
+
+    const data = (await response.json()) as ClaudeMessageResponse;
+    const text = data.content?.find((item) => item.type === "text")?.text;
+    if (text) {
+      return text;
+    }
+    lastError = `Claude returned no text content for model ${model}.`;
   }
 
-  const data = (await response.json()) as ClaudeMessageResponse;
-  const text = data.content?.find((item) => item.type === "text")?.text;
-  if (!text) {
-    throw new Error("Claude returned no text content.");
-  }
-  return text;
+  throw new Error(lastError);
 }
 
 export async function classifyPromptWithClaude(prompt: string): Promise<{
