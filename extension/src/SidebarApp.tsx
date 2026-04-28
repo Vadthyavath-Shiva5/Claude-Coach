@@ -1,16 +1,15 @@
 import { useMemo, useReducer, useState } from "react";
+import JSZip from "jszip";
 import {
   analyzeIntent,
   clarifyIntent,
   generateSkillFiles,
   getSkillSuggestions,
-  restructurePrompt
+  restructurePrompt,
+  type AnalyzeIntentResponse
 } from "./api";
-import { buildIntent, generatePrompt, isComplexPrompt, recommendSkills } from "./logic";
-import type { Answers, CoachState, CoachStep, IntentModel } from "./types";
-
-const INSERT_PROMPT_EVENT = "coach:insert-prompt";
-const SOURCE = "claude-capability-coach";
+import { buildIntent, generatePrompt } from "./logic";
+import type { Answers, CoachState, CoachStep, IntentModel, SkillSuggestion } from "./types";
 
 type Action =
   | { type: "SET_STEP"; step: CoachStep }
@@ -18,8 +17,7 @@ type Action =
   | { type: "SET_ANSWER"; key: keyof Answers; value: string }
   | { type: "SET_INTENT"; intent: IntentModel }
   | { type: "SET_GENERATED_PROMPT"; generatedPrompt: string }
-  | { type: "SET_SKILLS" }
-  | { type: "SET_SKILLS_LIST"; skills: CoachState["skills"] }
+  | { type: "SET_SKILLS"; skills: SkillSuggestion[] }
   | { type: "RESET_FLOW" };
 
 const INITIAL_INTENT = buildIntent("", {});
@@ -45,8 +43,6 @@ function reducer(state: CoachState, action: Action): CoachState {
     case "SET_GENERATED_PROMPT":
       return { ...state, generatedPrompt: action.generatedPrompt };
     case "SET_SKILLS":
-      return { ...state, skills: recommendSkills(state.prompt) };
-    case "SET_SKILLS_LIST":
       return { ...state, skills: action.skills };
     case "RESET_FLOW":
       return { ...INITIAL_STATE };
@@ -70,52 +66,57 @@ export default function SidebarApp() {
   const [navStack, setNavStack] = useState<CoachStep[]>(["home"]);
   const [draftPrompt, setDraftPrompt] = useState("");
   const [questionIndex, setQuestionIndex] = useState(0);
-  const [skillDecisionComplete, setSkillDecisionComplete] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
-  const [skillFiles, setSkillFiles] = useState<{ skillMd: string; instructionsMd: string } | null>(null);
   const [isBusy, setIsBusy] = useState(false);
-  const [intelligenceMode, setIntelligenceMode] = useState<"backend" | "local">("backend");
+  const [analysis, setAnalysis] = useState<AnalyzeIntentResponse | null>(null);
+  const [skillPackage, setSkillPackage] = useState<{
+    skillFolderName: string;
+    files: Array<{ name: string; content: string }>;
+  } | null>(null);
 
   const currentStep = navStack[navStack.length - 1];
   const canGoBack = navStack.length > 1;
   const stepTitles: Record<CoachStep, string> = {
     home: "Home",
     "chat-input": "Task Input",
+    "simple-result": "Simple Task Check",
     questions: "Clarifying Questions",
     "intent-editor": "Intent Editor",
     "prompt-output": "Prompt Output",
     "skill-decision": "Skill Decision",
     "skill-generator": "Skill Generator"
   };
-  const questions = useMemo(
-    () => [
-      {
-        key: "frequency" as const,
-        title: "How often is this task?",
-        options: ["one-time", "weekly", "daily"]
-      },
-      {
-        key: "outputFormat" as const,
-        title: "What output format do you want?",
-        options: ["report", "summary", "table"]
-      },
-      {
-        key: "detailLevel" as const,
-        title: "How much detail do you need?",
-        options: ["quick", "detailed"]
-      }
-    ],
-    []
-  );
   const flowOrder: CoachStep[] = [
     "home",
     "chat-input",
+    "simple-result",
     "questions",
     "intent-editor",
     "prompt-output",
     "skill-decision",
     "skill-generator"
   ];
+
+  const questionFlow = useMemo(
+    () => [
+      {
+        key: "frequency" as const,
+        title: analysis?.clarifyingQuestions[0] || "How often is this task expected to run?",
+        options: ["one-time", "weekly", "daily"]
+      },
+      {
+        key: "outputFormat" as const,
+        title: analysis?.clarifyingQuestions[1] || "What output format do you prefer?",
+        options: ["report", "summary", "table"]
+      },
+      {
+        key: "detailLevel" as const,
+        title: analysis?.clarifyingQuestions[2] || "How deep should the output go?",
+        options: ["quick", "detailed"]
+      }
+    ],
+    [analysis?.clarifyingQuestions]
+  );
 
   const gotoStep = (next: CoachStep) => {
     dispatch({ type: "SET_STEP", step: next });
@@ -137,212 +138,149 @@ export default function SidebarApp() {
     setNavStack(["home"]);
     setDraftPrompt("");
     setQuestionIndex(0);
-    setSkillDecisionComplete(false);
-    setSkillFiles(null);
     setStatusMessage("");
+    setAnalysis(null);
+    setSkillPackage(null);
   };
-
-  const onStart = () => gotoStep("chat-input");
 
   const onSubmitPrompt = async () => {
     const prompt = draftPrompt.trim();
     if (!prompt) return;
-
     setIsBusy(true);
-    dispatch({ type: "SET_PROMPT", prompt });
-    setQuestionIndex(0);
-    setSkillDecisionComplete(false);
-    setSkillFiles(null);
-
-    let complex = false;
     try {
+      dispatch({ type: "SET_PROMPT", prompt });
       const result = await analyzeIntent(prompt);
-      complex = result.isComplex;
-      setIntelligenceMode("backend");
+      setAnalysis(result);
+      setQuestionIndex(0);
+      if (result.classification === "simple") {
+        gotoStep("simple-result");
+      } else {
+        gotoStep("questions");
+      }
     } catch {
-      complex = isComplexPrompt(prompt);
-      setIntelligenceMode("local");
-      setStatusMessage("Backend unavailable. Using local fallback intelligence.");
+      setStatusMessage("Intelligence layer unavailable. Please check backend and retry.");
     } finally {
       setIsBusy(false);
     }
-
-    if (complex) {
-      gotoStep("questions");
-      return;
-    }
-
-    const intent = buildIntent(prompt, {});
-    dispatch({ type: "SET_INTENT", intent });
-    gotoStep("intent-editor");
   };
 
   const onSelectAnswer = async (value: string) => {
-    const question = questions[questionIndex];
+    const question = questionFlow[questionIndex];
     dispatch({ type: "SET_ANSWER", key: question.key, value });
-
-    if (questionIndex < questions.length - 1) {
+    if (questionIndex < questionFlow.length - 1) {
       setQuestionIndex((idx) => idx + 1);
       return;
     }
 
     const answers = { ...state.answers, [question.key]: value };
     setIsBusy(true);
-    let intent = buildIntent(state.prompt, answers);
     try {
       const result = await clarifyIntent(state.prompt, answers);
-      intent = result.intent;
-      setIntelligenceMode("backend");
+      dispatch({ type: "SET_INTENT", intent: result.intent });
+      gotoStep("intent-editor");
     } catch {
-      setIntelligenceMode("local");
-      setStatusMessage("Backend unavailable. Using local fallback intelligence.");
+      setStatusMessage("Failed to build intent. Please retry.");
     } finally {
       setIsBusy(false);
     }
-
-    dispatch({ type: "SET_INTENT", intent });
-    gotoStep("intent-editor");
   };
-
-  const updateIntent = (next: IntentModel) => dispatch({ type: "SET_INTENT", intent: next });
 
   const onGeneratePrompt = async () => {
     setIsBusy(true);
-    let generatedPrompt = generatePrompt(state.intent);
-    let skills = recommendSkills(state.prompt);
     try {
       const [promptResult, skillResult] = await Promise.all([
         restructurePrompt(state.intent),
         getSkillSuggestions(state.prompt)
       ]);
-      generatedPrompt = promptResult.improvedPrompt;
-      skills = skillResult.skills;
-      setIntelligenceMode("backend");
+      dispatch({ type: "SET_GENERATED_PROMPT", generatedPrompt: promptResult.improvedPrompt });
+      dispatch({ type: "SET_SKILLS", skills: skillResult.skills });
+      gotoStep("prompt-output");
     } catch {
-      setIntelligenceMode("local");
-      setStatusMessage("Backend unavailable. Using local fallback intelligence.");
+      dispatch({ type: "SET_GENERATED_PROMPT", generatedPrompt: generatePrompt(state.intent) });
+      setStatusMessage("Prompt generated with fallback. Verify backend intelligence for best quality.");
+      gotoStep("prompt-output");
     } finally {
       setIsBusy(false);
     }
-
-    dispatch({ type: "SET_GENERATED_PROMPT", generatedPrompt });
-    dispatch({ type: "SET_SKILLS_LIST", skills });
-    gotoStep("prompt-output");
   };
 
-  const copyPrompt = async () => {
-    if (!state.generatedPrompt) return;
-    await navigator.clipboard.writeText(state.generatedPrompt);
-    setStatusMessage("Prompt copied. Paste it into Claude and run.");
-  };
-
-  const insertIntoClaude = () => {
-    if (!state.generatedPrompt) return;
-    window.parent.postMessage(
-      {
-        source: SOURCE,
-        type: INSERT_PROMPT_EVENT,
-        payload: { prompt: state.generatedPrompt }
-      },
-      "*"
-    );
-    setStatusMessage("Prompt inserted into Claude input box.");
-  };
-
-  const onGenerateSkillFiles = async () => {
+  const onGenerateSkillPackage = async () => {
     setIsBusy(true);
-    const skillName = state.skills[0]?.name || "Custom Workflow Skill";
     try {
-      const files = await generateSkillFiles(skillName, state.prompt);
-      setSkillFiles(files);
-      setIntelligenceMode("backend");
-      setStatusMessage("Skill files generated.");
+      const response = await generateSkillFiles(state.skills[0]?.name || "Custom Skill", state.prompt);
+      setSkillPackage(response);
+      setStatusMessage("Professional skill package generated.");
     } catch {
-      const localSkillMd = `# ${skillName}\n\n## Purpose\n${state.prompt}\n\n## Workflow\n${state.intent.instructions
-        .map((line, idx) => `${idx + 1}. ${line}`)
-        .join("\n")}`;
-      const localInstructions = `# instructions\n\n- Goal: ${state.intent.goal}\n- Output format: ${state.intent.outputFormat}\n- Tone: ${state.intent.tone}\n- Notes: ${state.intent.notes || "N/A"}`;
-      setSkillFiles({ skillMd: localSkillMd, instructionsMd: localInstructions });
-      setIntelligenceMode("local");
-      setStatusMessage("Backend unavailable. Generated local skill files.");
+      setStatusMessage("Skill generation failed. Check backend and try again.");
     } finally {
       setIsBusy(false);
     }
+  };
+
+  const downloadSkillZip = async () => {
+    if (!skillPackage) return;
+    const zip = new JSZip();
+    const folder = zip.folder(skillPackage.skillFolderName);
+    if (!folder) return;
+    skillPackage.files.forEach((file) => folder.file(file.name, file.content));
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${skillPackage.skillFolderName}.zip`;
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   const sessionSummary = useMemo(() => {
-    const answers = [
-      `- Frequency: ${state.answers.frequency || "N/A"}`,
-      `- Output format: ${state.answers.outputFormat || "N/A"}`,
-      `- Detail level: ${state.answers.detailLevel || "N/A"}`
-    ].join("\n");
-    const skillLines = state.skills.length
-      ? state.skills.map((skill, index) => `${index + 1}. ${skill.name} - ${skill.reason}`).join("\n")
-      : "No skills generated.";
+    return `# Session Summary
 
-    return `# Claude Capability Coach Session Summary
-
-## Intelligence Mode
-${intelligenceMode}
-
-## Original Prompt
+## Prompt
 ${state.prompt || "N/A"}
 
-## Clarifying Answers
-${answers}
+## Classification
+${analysis?.classification || "N/A"} - ${analysis?.reason || "N/A"}
 
-## Structured Intent
-- Goal: ${state.intent.goal}
-- Output format: ${state.intent.outputFormat}
-- Tone: ${state.intent.tone}
-- Notes: ${state.intent.notes || "N/A"}
+## Answers
+- Frequency: ${state.answers.frequency || "N/A"}
+- Output format: ${state.answers.outputFormat || "N/A"}
+- Detail level: ${state.answers.detailLevel || "N/A"}
 
-### Instructions
-${state.intent.instructions.map((line, idx) => `${idx + 1}. ${line}`).join("\n")}
-
-## Generated Prompt
+## Final Prompt
 ${state.generatedPrompt || "N/A"}
-
-## Skill Suggestions
-${skillLines}
-
-## Generated Files
-- SKILL.md: ${skillFiles ? "Generated" : "Not generated"}
-- instructions.md: ${skillFiles ? "Generated" : "Not generated"}
 `;
-  }, [intelligenceMode, skillFiles, state.answers.detailLevel, state.answers.frequency, state.answers.outputFormat, state.generatedPrompt, state.intent.goal, state.intent.instructions, state.intent.notes, state.intent.outputFormat, state.intent.tone, state.prompt, state.skills]);
+  }, [analysis?.classification, analysis?.reason, state.answers.detailLevel, state.answers.frequency, state.answers.outputFormat, state.generatedPrompt, state.prompt]);
 
   return (
     <div className="app">
       <div className="header">
         <h1>Claude Capability Coach</h1>
-        {canGoBack && (
-          <button className="secondaryButton" onClick={onBack}>
-            Back
+        <div className="buttonRow">
+          {canGoBack && (
+            <button className="secondaryButton" onClick={onBack}>
+              Back
+            </button>
+          )}
+          <button className="secondaryButton" onClick={restartFlow}>
+            New Session
           </button>
-        )}
+        </div>
       </div>
+
       <div className="card compact">
         <div className="stepper">
           {flowOrder.map((step) => {
             const visited = navStack.includes(step);
             const active = step === currentStep;
             return (
-              <span
-                key={step}
-                className={`stepTag ${active ? "activeStep" : visited ? "visitedStep" : ""}`}
-              >
+              <span key={step} className={`stepTag ${active ? "activeStep" : visited ? "visitedStep" : ""}`}>
                 {stepTitles[step]}
               </span>
             );
           })}
         </div>
-        <p className="subtle">
-          Step: <strong>{stepTitles[currentStep]}</strong>
-        </p>
-        <p className="subtle">Progress: {navStack.length} steps visited in this session.</p>
-        <p className="subtle">Intelligence mode: {intelligenceMode}</p>
       </div>
+
       {statusMessage && (
         <div className="card compact">
           <p>{statusMessage}</p>
@@ -352,47 +290,50 @@ ${skillLines}
       {currentStep === "home" && (
         <div className="card stack">
           <h3>Welcome</h3>
-          <p className="subtle">
-            Use this coach to turn rough tasks into structured prompts and optional reusable skill files.
-          </p>
-          <div className="card compact">
-            <p><strong>Flow options</strong></p>
-            <p className="subtle">Quick prompt: Start &rarr; Input &rarr; Intent &rarr; Prompt Output</p>
-            <p className="subtle">Full workflow: Start &rarr; Input &rarr; Questions &rarr; Intent &rarr; Prompt &rarr; Skill files</p>
-          </div>
-          <button onClick={onStart}>Start</button>
+          <p className="subtle">Start a new coaching session for task-specific prompt intelligence.</p>
+          <button onClick={() => gotoStep("chat-input")}>Start</button>
         </div>
       )}
 
       {currentStep === "chat-input" && (
         <div className="card stack">
           <h3>Describe your task</h3>
-          <p className="subtle">
-            Example: "Create a weekly sales report summary from meeting notes and emails."
-          </p>
           <textarea
             value={draftPrompt}
             onChange={(event) => setDraftPrompt(event.target.value)}
             placeholder="Describe your task..."
           />
-          <button onClick={onSubmitPrompt} disabled={draftPrompt.trim().length < 5 || isBusy}>
-            {isBusy ? "Processing..." : "Submit"}
+          <button onClick={() => void onSubmitPrompt()} disabled={draftPrompt.trim().length < 5 || isBusy}>
+            {isBusy ? "Analyzing..." : "Submit"}
           </button>
+        </div>
+      )}
+
+      {currentStep === "simple-result" && (
+        <div className="card stack">
+          <h3>Simple Task Detected</h3>
+          <p>{analysis?.reason}</p>
+          <div className="buttonRow">
+            <button onClick={() => gotoStep("prompt-output")}>Generate Quick Prompt Anyway</button>
+            <button className="secondaryButton" onClick={restartFlow}>
+              End Session
+            </button>
+          </div>
         </div>
       )}
 
       {currentStep === "questions" && (
         <div className="card stack">
-          <h3>{questions[questionIndex].title}</h3>
+          <h3>{questionFlow[questionIndex].title}</h3>
           <div className="buttonColumn">
-            {questions[questionIndex].options.map((option) => (
+            {questionFlow[questionIndex].options.map((option) => (
               <button key={option} onClick={() => void onSelectAnswer(option)} disabled={isBusy}>
                 {option}
               </button>
             ))}
           </div>
           <p className="subtle">
-            Question {questionIndex + 1} of {questions.length}
+            Question {questionIndex + 1} of {questionFlow.length}
           </p>
         </div>
       )}
@@ -404,7 +345,7 @@ ${skillLines}
             Goal
             <textarea
               value={state.intent.goal}
-              onChange={(event) => updateIntent({ ...state.intent, goal: event.target.value })}
+              onChange={(event) => dispatch({ type: "SET_INTENT", intent: { ...state.intent, goal: event.target.value } })}
             />
           </label>
           <label>
@@ -412,9 +353,9 @@ ${skillLines}
             <textarea
               value={state.intent.instructions.join("\n")}
               onChange={(event) =>
-                updateIntent({
-                  ...state.intent,
-                  instructions: event.target.value.split("\n").filter(Boolean)
+                dispatch({
+                  type: "SET_INTENT",
+                  intent: { ...state.intent, instructions: event.target.value.split("\n").filter(Boolean) }
                 })
               }
             />
@@ -424,7 +365,10 @@ ${skillLines}
             <select
               value={state.intent.outputFormat}
               onChange={(event) =>
-                updateIntent({ ...state.intent, outputFormat: event.target.value as IntentModel["outputFormat"] })
+                dispatch({
+                  type: "SET_INTENT",
+                  intent: { ...state.intent, outputFormat: event.target.value as IntentModel["outputFormat"] }
+                })
               }
             >
               <option value="report">report</option>
@@ -437,7 +381,10 @@ ${skillLines}
             <select
               value={state.intent.tone}
               onChange={(event) =>
-                updateIntent({ ...state.intent, tone: event.target.value as IntentModel["tone"] })
+                dispatch({
+                  type: "SET_INTENT",
+                  intent: { ...state.intent, tone: event.target.value as IntentModel["tone"] }
+                })
               }
             >
               <option value="professional">professional</option>
@@ -449,7 +396,7 @@ ${skillLines}
             Notes
             <textarea
               value={state.intent.notes}
-              onChange={(event) => updateIntent({ ...state.intent, notes: event.target.value })}
+              onChange={(event) => dispatch({ type: "SET_INTENT", intent: { ...state.intent, notes: event.target.value } })}
             />
           </label>
           <button onClick={() => void onGeneratePrompt()} disabled={isBusy}>
@@ -461,92 +408,74 @@ ${skillLines}
       {currentStep === "prompt-output" && (
         <div className="card stack">
           <h3>Generated Prompt</h3>
-          <pre>{state.generatedPrompt}</pre>
-          <div className="card compact">
-            <p><strong>How to use this prompt</strong></p>
-            <p className="subtle">1. Copy or insert into Claude input.</p>
-            <p className="subtle">2. Review before sending.</p>
-            <p className="subtle">3. Save good prompts for reuse in recurring tasks.</p>
-          </div>
+          <pre>{state.generatedPrompt || generatePrompt(state.intent)}</pre>
           <div className="buttonRow">
-            <button onClick={copyPrompt}>Copy</button>
-            <button onClick={insertIntoClaude}>Insert into Claude</button>
-            <button onClick={() => downloadFile("session-summary.md", sessionSummary)}>
-              Export Session Summary
+            <button
+              onClick={async () => {
+                await navigator.clipboard.writeText(state.generatedPrompt || generatePrompt(state.intent));
+                setStatusMessage("Copied. Paste into Claude and execute.");
+              }}
+            >
+              Copy to paste into Claude
             </button>
+            <button onClick={() => gotoStep("skill-decision")}>Continue for skill recommendation</button>
+            <button onClick={() => downloadFile("session-summary.md", sessionSummary)}>Export Session Summary</button>
           </div>
-          <button onClick={() => gotoStep("skill-decision")}>Looks good &rarr; Continue</button>
         </div>
       )}
 
       {currentStep === "skill-decision" && (
         <div className="card stack">
-          <h3>Reusable Skill</h3>
-          <p>Do you want to create a reusable skill for this task?</p>
-          {state.skills.length > 0 && (
-            <div className="card compact">
-              <p><strong>Suggested skills</strong></p>
-              {state.skills.map((skill) => (
-                <p key={skill.name} className="subtle">
-                  - {skill.name}: {skill.reason}
-                </p>
-              ))}
+          <h3>Skill Recommendation</h3>
+          <p>Do you want to create a reusable skill package for this task?</p>
+          {state.skills.map((skill) => (
+            <div key={skill.name} className="skillCard">
+              <h4>{skill.name}</h4>
+              <p>{skill.description}</p>
+              <small>{skill.reason}</small>
             </div>
-          )}
+          ))}
           <div className="buttonRow">
             <button onClick={() => gotoStep("skill-generator")}>Yes</button>
-            <button onClick={() => setSkillDecisionComplete(true)}>No</button>
+            <button className="secondaryButton" onClick={restartFlow}>
+              No, end session
+            </button>
           </div>
-          {skillDecisionComplete && (
-            <div className="card compact">
-              <p>Flow complete. You can now use your improved prompt in Claude.</p>
-              <button onClick={restartFlow}>Start New Flow</button>
-            </div>
-          )}
         </div>
       )}
 
       {currentStep === "skill-generator" && (
         <div className="card stack">
-          <h3>Skill Generator</h3>
+          <h3>Skill Package Generator</h3>
           <p className="subtle">
-            Download both files and keep them in your project docs so you can reuse the same workflow quickly.
+            Generated package follows Claude custom skill guidance with YAML metadata and upload instructions.
           </p>
-          {!skillFiles && (
-            <button onClick={() => void onGenerateSkillFiles()} disabled={isBusy}>
-              {isBusy ? "Generating files..." : "Generate Skill Files"}
+          {!skillPackage && (
+            <button onClick={() => void onGenerateSkillPackage()} disabled={isBusy}>
+              {isBusy ? "Generating package..." : "Generate Skill Package"}
             </button>
           )}
-          {skillFiles && (
+          {skillPackage && (
             <>
-              <h4>SKILL.md</h4>
-              <pre>{skillFiles.skillMd}</pre>
-              <h4>instructions.md</h4>
-              <pre>{skillFiles.instructionsMd}</pre>
+              {skillPackage.files.map((file) => (
+                <div key={file.name} className="stack">
+                  <h4>{file.name}</h4>
+                  <pre>{file.content}</pre>
+                </div>
+              ))}
+              <div className="buttonRow">
+                <button onClick={() => void downloadSkillZip()}>Download Skill Folder ZIP</button>
+                <button onClick={() => downloadFile("session-summary.md", sessionSummary)}>
+                  Export Session Summary
+                </button>
+              </div>
+              <div className="card compact">
+                <p><strong>How to upload</strong></p>
+                <p className="subtle">- Claude: Customize -> Skills -> Upload ZIP -> Enable skill.</p>
+                <p className="subtle">- Project option: create a project and add knowledge/instruction files.</p>
+              </div>
             </>
           )}
-          <div className="card compact">
-            <p><strong>How to use generated files</strong></p>
-            <p className="subtle">- `SKILL.md`: defines purpose and reusable workflow pattern.</p>
-            <p className="subtle">- `instructions.md`: operational checklist for applying the skill repeatedly.</p>
-          </div>
-          <div className="buttonRow">
-            <button
-              onClick={() => skillFiles && downloadFile("SKILL.md", skillFiles.skillMd)}
-              disabled={!skillFiles}
-            >
-              Download SKILL.md
-            </button>
-            <button
-              onClick={() => skillFiles && downloadFile("instructions.md", skillFiles.instructionsMd)}
-              disabled={!skillFiles}
-            >
-              Download instructions.md
-            </button>
-            <button onClick={() => downloadFile("session-summary.md", sessionSummary)}>
-              Export Session Summary
-            </button>
-          </div>
         </div>
       )}
     </div>

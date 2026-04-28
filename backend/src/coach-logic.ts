@@ -18,12 +18,49 @@ export interface IntentModel {
 }
 
 const COMPLEX_KEYWORDS = ["analyse", "analyze", "generate", "create", "report", "weekly"];
+const SIMPLE_KEYWORDS = ["what", "when", "where", "who", "define", "meaning", "explain"];
+
+export interface AnalyzeResult {
+  isComplex: boolean;
+  classification: "simple" | "complex";
+  reason: string;
+  clarifyingQuestions: string[];
+}
 
 export function isComplexPrompt(prompt: string): boolean {
   const clean = prompt.trim().toLowerCase();
   if (!clean) return false;
   const words = clean.split(/\s+/).filter(Boolean).length;
   return words > 15 || COMPLEX_KEYWORDS.some((keyword) => clean.includes(keyword));
+}
+
+export function analyzePrompt(prompt: string): AnalyzeResult {
+  const clean = prompt.trim().toLowerCase();
+  const words = clean.split(/\s+/).filter(Boolean).length;
+  const hasSimpleSignal = SIMPLE_KEYWORDS.some((keyword) => clean.startsWith(keyword) || clean.includes(`${keyword} `));
+  const complex = isComplexPrompt(prompt);
+
+  if (!complex && (words <= 14 || hasSimpleSignal)) {
+    return {
+      isComplex: false,
+      classification: "simple",
+      reason:
+        "This appears to be a straightforward question or short task. It likely does not require a full Claude capability workflow.",
+      clarifyingQuestions: []
+    };
+  }
+
+  return {
+    isComplex: true,
+    classification: "complex",
+    reason:
+      "This task appears multi-step or output-sensitive. A structured clarification + prompt design workflow will improve reliability.",
+    clarifyingQuestions: [
+      "What exact business or user outcome should this response achieve?",
+      "What constraints must Claude strictly follow (scope, exclusions, factual boundaries, references)?",
+      "What output structure and quality standard should define a successful answer?"
+    ]
+  };
 }
 
 export function buildIntent(prompt: string, answers: IntentAnswers): IntentModel {
@@ -34,10 +71,11 @@ export function buildIntent(prompt: string, answers: IntentAnswers): IntentModel
   return {
     goal: prompt.trim() || "Help improve this task prompt.",
     instructions: [
-      "Understand the exact task objective.",
-      "Identify missing context and assumptions.",
-      `Respond with a ${detailLevel} level of detail.`,
-      `Format output as a ${outputFormat}.`
+      "Confirm the exact objective before drafting any solution.",
+      "Use only information stated by the user or clearly marked assumptions.",
+      "Surface uncertainty explicitly instead of inventing unsupported facts.",
+      `Provide a ${detailLevel} level of detail with practical next actions.`,
+      `Format the final response as a ${outputFormat} with clear section headings.`
     ],
     outputFormat,
     tone: "professional",
@@ -48,13 +86,28 @@ export function buildIntent(prompt: string, answers: IntentAnswers): IntentModel
 
 export function generatePrompt(intent: IntentModel): string {
   return [
-    "You are an expert assistant.",
-    `Goal: ${intent.goal}`,
+    "You are a senior domain expert and structured problem-solving assistant.",
+    "Operate with high factual discipline and explicit reasoning boundaries.",
+    "",
+    "Primary Objective",
+    `- ${intent.goal}`,
+    "",
+    "Execution Requirements",
     "Instructions:",
     ...intent.instructions.map((item, index) => `${index + 1}. ${item}`),
-    `Output format: ${intent.outputFormat}`,
-    `Tone: ${intent.tone}`,
-    `Notes: ${intent.notes || "N/A"}`
+    "",
+    "Quality Guardrails",
+    "- Do not fabricate facts, sources, metrics, or implementation details.",
+    "- If data is missing, state what is missing and request specific inputs.",
+    "- Keep the response aligned to the stated goal and exclude irrelevant tangents.",
+    "",
+    "Output Contract",
+    `- Output format: ${intent.outputFormat}`,
+    `- Tone: ${intent.tone}`,
+    `- Notes: ${intent.notes || "N/A"}`,
+    "",
+    "Final Check",
+    "- Ensure response is factual, directly usable, and free of unsupported assumptions."
   ].join("\n");
 }
 
@@ -97,9 +150,88 @@ export function recommendSkills(prompt: string) {
 
 export function generateSkillFiles(skillName: string, prompt: string) {
   const skill = skillName || "Custom Workflow Skill";
+  const folderName = skill.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const description =
+    "Guide Claude through structured intent clarification and high-quality prompt design for repeatable tasks.";
+
+  const skillMd = `---
+name: ${skill}
+description: ${description}
+---
+
+# Overview
+Use this Skill when a user needs a reliable, context-rich prompt that avoids assumptions and improves execution quality.
+
+# When to use
+- Multi-step tasks
+- Recurring workflows
+- Outputs requiring strict structure and quality controls
+
+# Workflow
+1. Clarify intent and expected outcomes
+2. Capture constraints, assumptions, and exclusions
+3. Define output format, tone, and depth
+4. Build structured prompt with quality guardrails
+5. Validate prompt for factual discipline and scope alignment
+
+# Example seed task
+${prompt || "User-defined task"}
+`;
+
+  const instructionsMd = `# Instructions
+
+## Operator checklist
+1. Confirm user goal and success criteria.
+2. Ask clarifying questions for missing constraints.
+3. Produce structured prompt sections:
+   - objective
+   - execution steps
+   - output contract
+   - quality guardrails
+4. Validate the prompt for relevance and factual safety.
+`;
+
+  const referenceMd = `# Reference
+
+## Prompt quality rules
+- No hallucinated facts
+- No hidden assumptions
+- Explicitly call out unknowns
+- Keep outputs decision-ready and action-oriented
+`;
+
+  const projectRecommendationMd = `# Project Recommendation (Optional)
+
+If this workflow is used repeatedly across a team, consider creating a project package:
+- Knowledge files for domain context
+- Standard instruction templates
+- Example prompts and gold-standard outputs
+
+This is recommended when consistency and onboarding speed are important.
+`;
+
+  const uploadGuideMd = `# Upload Guide
+
+## Upload as Skill in Claude
+1. Open Claude settings.
+2. Go to Customize -> Skills.
+3. Upload the generated skill folder zip.
+4. Enable the skill and test with trigger prompts.
+
+## Upload as Project package (optional)
+1. Create a new project in Claude.
+2. Add the recommendation/reference files as project knowledge.
+3. Add operational instructions in project settings.
+`;
+
   return {
-    skillMd: `# ${skill}\n\n## Purpose\nImprove prompt quality for tasks like:\n- ${prompt || "User-defined task"}\n\n## Workflow\n1. Clarify goal\n2. Add constraints\n3. Define output format\n`,
-    instructionsMd:
-      "# instructions\n\nUse this skill to guide users through intent clarification and structured prompt writing.\n"
+    skillFolderName: folderName,
+    files: [
+      { name: "SKILL.md", content: skillMd },
+      { name: "instructions.md", content: instructionsMd },
+      { name: "REFERENCE.md", content: referenceMd },
+      { name: "PROJECT_RECOMMENDATION.md", content: projectRecommendationMd },
+      { name: "UPLOAD_GUIDE.md", content: uploadGuideMd }
+    ]
   };
 }

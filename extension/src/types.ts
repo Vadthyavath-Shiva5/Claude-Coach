@@ -1,6 +1,7 @@
 export type CoachStep =
   | "home"
   | "chat-input"
+  | "simple-result"
   | "questions"
   | "intent-editor"
   | "prompt-output"

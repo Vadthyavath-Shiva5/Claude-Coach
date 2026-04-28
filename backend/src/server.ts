@@ -3,10 +3,10 @@ import cors from "cors";
 import express from "express";
 import type { NextFunction, Request, Response } from "express";
 import {
+  analyzePrompt,
   buildIntent,
   generatePrompt,
   generateSkillFiles,
-  isComplexPrompt,
   recommendSkills
 } from "./coach-logic.js";
 import {
@@ -76,8 +76,9 @@ app.post("/v1/intent/analyze", asyncHandler((req, res) => {
   }
 
   const { prompt } = parsed.data;
+  const analysis = analyzePrompt(prompt);
   res.json({
-    isComplex: isComplexPrompt(prompt),
+    ...analysis,
     promptLength: prompt.trim().split(/\s+/).filter(Boolean).length
   });
 }));

@@ -24,8 +24,25 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function analyzeIntent(prompt: string): Promise<{ isComplex: boolean }> {
-  if (!API_BASE_URL) return { isComplex: isComplexPrompt(prompt) };
+export interface AnalyzeIntentResponse {
+  isComplex: boolean;
+  classification: "simple" | "complex";
+  reason: string;
+  clarifyingQuestions: string[];
+}
+
+export async function analyzeIntent(prompt: string): Promise<AnalyzeIntentResponse> {
+  if (!API_BASE_URL) {
+    const isComplex = isComplexPrompt(prompt);
+    return {
+      isComplex,
+      classification: isComplex ? "complex" : "simple",
+      reason: isComplex
+        ? "Complex task detected. Structured coaching is recommended."
+        : "Simple request detected. You can answer directly without full coaching.",
+      clarifyingQuestions: []
+    };
+  }
   return postJson("/v1/intent/analyze", { prompt });
 }
 
@@ -45,13 +62,30 @@ export async function getSkillSuggestions(prompt: string): Promise<{ skills: Ski
 }
 
 export async function generateSkillFiles(skillName: string, prompt: string): Promise<{
-  skillMd: string;
-  instructionsMd: string;
+  skillFolderName: string;
+  files: Array<{ name: string; content: string }>;
 }> {
   if (!API_BASE_URL) {
     return {
-      skillMd: `# ${skillName || "Custom Skill"}\n\nGenerated locally for prompt:\n${prompt}`,
-      instructionsMd: "# instructions\n\nGenerated locally."
+      skillFolderName: (skillName || "custom-skill").toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      files: [
+        {
+          name: "SKILL.md",
+          content: `---
+name: ${skillName || "Custom Skill"}
+description: Structured prompt coaching skill for repeatable tasks.
+---
+
+# Overview
+Generated locally for prompt:
+${prompt}
+`
+        },
+        {
+          name: "instructions.md",
+          content: "# Instructions\n\nGenerated locally."
+        }
+      ]
     };
   }
   return postJson("/v1/skills/generate", { skillName, prompt });
