@@ -196,14 +196,15 @@ app.post("/v1/skills/generate", asyncHandler(async (req, res) => {
     res.json(payload);
     return;
   } catch (error) {
-    if (useClaudeIntelligence) {
-      res.status(502).json({
-        error: "Intelligence provider failure",
-        message: error instanceof Error ? error.message : "Claude skill generation failed."
-      });
-      return;
-    }
-    res.json(generateSkillFiles(parsed.data.skillName || "", parsed.data.prompt || ""));
+    // Never hard-fail skill generation for user workflow.
+    const fallback = generateSkillFiles(parsed.data.skillName || "", parsed.data.prompt || "");
+    res.json({
+      ...fallback,
+      warning:
+        error instanceof Error
+          ? `Claude generation degraded to fallback package: ${error.message}`
+          : "Claude generation degraded to fallback package."
+    });
     return;
   }
 }));

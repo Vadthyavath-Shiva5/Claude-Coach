@@ -232,9 +232,10 @@ Return JSON:
   try {
     return extractJson(output) as { skillFolderName: string; files: Array<{ name: string; content: string }> };
   } catch {
-    const repaired = await callClaude(
-      "You repair malformed JSON. Return valid JSON only, no markdown or commentary.",
-      `Fix this malformed JSON payload into valid JSON.
+    try {
+      const repaired = await callClaude(
+        "You repair malformed JSON. Return valid JSON only, no markdown or commentary.",
+        `Fix this malformed JSON payload into valid JSON.
 
 Rules:
 - Keep all content semantically equivalent.
@@ -244,7 +245,44 @@ Rules:
 
 Malformed payload:
 ${output}`
-    );
-    return extractJson(repaired) as { skillFolderName: string; files: Array<{ name: string; content: string }> };
+      );
+      return extractJson(repaired) as { skillFolderName: string; files: Array<{ name: string; content: string }> };
+    } catch {
+      // Last-resort robust path: generate files independently without JSON parsing.
+      const safeName = (skillName || "custom-workflow-skill").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const [skillMd, instructionsMd, referenceMd, projectRecMd, uploadGuideMd] = await Promise.all([
+        callClaude(
+          "Return only markdown for SKILL.md. Include YAML frontmatter with name and description.",
+          `Create SKILL.md for skill "${skillName || "Custom Workflow Skill"}" based on task: ${prompt}`
+        ),
+        callClaude(
+          "Return only markdown for instructions.md.",
+          `Create detailed execution instructions for the skill "${skillName || "Custom Workflow Skill"}" based on: ${prompt}`
+        ),
+        callClaude(
+          "Return only markdown for REFERENCE.md.",
+          `Create concise quality reference notes for this task workflow: ${prompt}`
+        ),
+        callClaude(
+          "Return only markdown for PROJECT_RECOMMENDATION.md.",
+          `Create project recommendation guidance for scaling this workflow.`
+        ),
+        callClaude(
+          "Return only markdown for UPLOAD_GUIDE.md.",
+          "Create step-by-step upload instructions for Claude Skills and Project setup."
+        )
+      ]);
+
+      return {
+        skillFolderName: safeName,
+        files: [
+          { name: "SKILL.md", content: skillMd.trim() },
+          { name: "instructions.md", content: instructionsMd.trim() },
+          { name: "REFERENCE.md", content: referenceMd.trim() },
+          { name: "PROJECT_RECOMMENDATION.md", content: projectRecMd.trim() },
+          { name: "UPLOAD_GUIDE.md", content: uploadGuideMd.trim() }
+        ]
+      };
+    }
   }
 }
