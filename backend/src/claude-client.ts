@@ -229,5 +229,22 @@ Return JSON:
   ]
 }`
   );
-  return extractJson(output) as { skillFolderName: string; files: Array<{ name: string; content: string }> };
+  try {
+    return extractJson(output) as { skillFolderName: string; files: Array<{ name: string; content: string }> };
+  } catch {
+    const repaired = await callClaude(
+      "You repair malformed JSON. Return valid JSON only, no markdown or commentary.",
+      `Fix this malformed JSON payload into valid JSON.
+
+Rules:
+- Keep all content semantically equivalent.
+- Escape invalid characters in strings.
+- Ensure arrays/objects are properly closed.
+- Output only valid JSON object.
+
+Malformed payload:
+${output}`
+    );
+    return extractJson(repaired) as { skillFolderName: string; files: Array<{ name: string; content: string }> };
+  }
 }

@@ -444,7 +444,7 @@ ${state.generatedPrompt || "N/A"}
                 const ok = await copyText(state.generatedPrompt);
                 setStatusMessage(
                   ok
-                    ? "Copied. Paste into Claude and execute."
+                    ? "Prompt copied successfully. You can now paste it into Claude."
                     : "Copy failed. Please manually select and copy the prompt text."
                 );
               }}
