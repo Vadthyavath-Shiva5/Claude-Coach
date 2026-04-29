@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CCC User Journey Wireframe</title>
+    <style>
+      :root {
+        --bg: #f4f4f4;
+        --ink: #1f1f1f;
+        --muted: #666;
+        --line: #b6b6b6;
+        --card: #fff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: var(--bg);
+        color: var(--ink);
+      }
+      .viewport {
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        position: relative;
+      }
+      .fit-stage {
+        position: absolute;
+        left: 0;
+        top: 0;
+        transform-origin: top left;
+      }
+      .page {
+        max-width: 1460px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .header {
+        border: 2px solid var(--line);
+        background: var(--card);
+        padding: 16px;
+        margin-bottom: 14px;
+      }
+      .header h1 {
+        margin: 0;
+        font-size: 22px;
+      }
+      .header p {
+        margin: 8px 0 0;
+        color: var(--muted);
+      }
+      .legend {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin: 10px 0 0;
+      }
+      .chip {
+        border: 1px solid var(--line);
+        background: #fafafa;
+        padding: 4px 10px;
+        font-size: 12px;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr 320px;
+        gap: 14px;
+      }
+      .canvas {
+        border: 2px solid var(--line);
+        background: #fcfcfc;
+        padding: 14px;
+        overflow: hidden;
+      }
+      .rail {
+        border: 2px solid var(--line);
+        background: var(--card);
+        padding: 14px;
+      }
+      .row {
+        display: flex;
+        align-items: stretch;
+        gap: 10px;
+      }
+      .node {
+        width: 210px;
+        border: 2px solid var(--line);
+        background: var(--card);
+        padding: 10px;
+        position: relative;
+      }
+      .node h3 {
+        margin: 0 0 6px;
+        font-size: 13px;
+      }
+      .node p {
+        margin: 0;
+        font-size: 12px;
+        color: #3b3b3b;
+        line-height: 1.35;
+      }
+      .meta {
+        margin-top: 8px;
+        font-size: 11px;
+        border-top: 1px dashed var(--line);
+        padding-top: 6px;
+        color: #4a4a4a;
+      }
+      .arrow {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 44px;
+        color: #777;
+        font-size: 22px;
+      }
+      .decision {
+        background: #f9f9f9;
+      }
+      .branch-wrap {
+        margin-top: 18px;
+        border-top: 2px dashed var(--line);
+        padding-top: 16px;
+      }
+      .branch-title {
+        font-size: 12px;
+        color: #5d5d5d;
+        margin: 0 0 10px;
+      }
+      .terminal {
+        background: #f5f5f5;
+      }
+      .rail h2 {
+        margin: 0 0 10px;
+        font-size: 15px;
+      }
+      .rail section {
+        border: 1px solid var(--line);
+        padding: 10px;
+        margin-bottom: 10px;
+        background: #fafafa;
+      }
+      .rail h3 {
+        margin: 0 0 6px;
+        font-size: 12px;
+      }
+      .rail ul {
+        margin: 0;
+        padding-left: 16px;
+      }
+      .rail li {
+        font-size: 12px;
+        margin-bottom: 4px;
+        line-height: 1.3;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="viewport" id="viewport">
+      <div class="fit-stage" id="fitStage">
+        <div class="page">
+      <div class="header">
+        <h1>Claude Capability Coach - User Journey Wireframe</h1>
+        <p>Low-fidelity flowchart showing what the user sees, inputs, and gets as outputs from start to finish.</p>
+        <div class="legend">
+          <span class="chip">Screen Node</span>
+          <span class="chip">Input Point</span>
+          <span class="chip">Decision Branch</span>
+          <span class="chip">Output/Deliverable</span>
+        </div>
+      </div>
+
+      <div class="layout">
+        <main class="canvas">
+          <div class="row">
+            <div class="node">
+              <h3>1) Claude.ai Page Loaded</h3>
+              <p>User opens Claude web app. Coach button is floating on right side; sidebar hidden by default.</p>
+              <div class="meta">System state: Idle</div>
+            </div>
+            <div class="arrow">→</div>
+            <div class="node">
+              <h3>2) Toggle Coach</h3>
+              <p>User clicks <strong>Coach</strong> button. Sidebar slides in.</p>
+              <div class="meta">Action: Open/Close sidebar</div>
+            </div>
+            <div class="arrow">→</div>
+            <div class="node">
+              <h3>3) Home Screen</h3>
+              <p>Shows title + guidance + <strong>Start</strong> button.</p>
+              <div class="meta">Input: Click Start</div>
+            </div>
+            <div class="arrow">→</div>
+            <div class="node">
+              <h3>4) Chat Input</h3>
+              <p>User types task prompt manually (no auto-read from Claude textbox).</p>
+              <div class="meta">Example inputs: "Indian capital", "analyse and prepare a PPT..."</div>
+            </div>
+            <div class="arrow">→</div>
+            <div class="node decision">
+              <h3>5) Intent Detection</h3>
+              <p>Coach checks if task is simple or complex.</p>
+              <div class="meta">Decision: Simple vs Complex route</div>
+            </div>
+          </div>
+
+          <div class="branch-wrap">
+            <p class="branch-title">BRANCH A - SIMPLE TASK PATH</p>
+            <div class="row">
+              <div class="node">
+                <h3>A1) Simple Result</h3>
+                <p>Coach explains quick task. User can end session or generate improved prompt anyway.</p>
+                <div class="meta">Input: Generate Prompt Anyway / End</div>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node">
+                <h3>A2) Prompt Output</h3>
+                <p>Structured prompt displayed.</p>
+                <div class="meta">Output: Better prompt text</div>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node terminal">
+                <h3>A3) Copy + Use in Claude</h3>
+                <p>User copies prompt and pastes into Claude chat.</p>
+                <div class="meta">End output: Immediate execution in Claude.ai</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="branch-wrap">
+            <p class="branch-title">BRANCH B - COMPLEX TASK PATH</p>
+            <div class="row">
+              <div class="node">
+                <h3>B1) Clarifying Questions</h3>
+                <p>Step-by-step multiple-choice questions (frequency, format, detail level).</p>
+                <div class="meta">Input: Option selections</div>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node">
+                <h3>B2) Intent Editor</h3>
+                <p>User edits goal, instructions, output format, tone, and notes.</p>
+                <div class="meta">Input: Editable fields</div>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node">
+                <h3>B3) Prompt Output</h3>
+                <p>Coach generates high-quality structured prompt from intent model.</p>
+                <div class="meta">Output: Better prompt + copy action</div>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node decision">
+                <h3>B4) Skill Decision</h3>
+                <p>Ask: "Create reusable skill package?"</p>
+                <div class="meta">Decision: Yes / No</div>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node">
+                <h3>B5) Skill Generator</h3>
+                <p>Generates package with `SKILL.md`, `instructions.md`, references, upload guide.</p>
+                <div class="meta">Output: Downloadable ZIP</div>
+              </div>
+              <div class="arrow">→</div>
+              <div class="node terminal">
+                <h3>B6) Reuse + Upload</h3>
+                <p>User downloads ZIP and uploads as reusable skill in Customize/Skills workflow.</p>
+                <div class="meta">End output: Reusable workflow asset</div>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        <aside class="rail">
+          <h2>Key Journey Notes</h2>
+
+          <section>
+            <h3>Primary User Inputs</h3>
+            <ul>
+              <li>Toggle Coach button click</li>
+              <li>Task prompt text</li>
+              <li>Question option selections</li>
+              <li>Intent editor field updates</li>
+              <li>Skill creation decision</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Primary Outputs</h3>
+            <ul>
+              <li>Complexity classification</li>
+              <li>Refined intent model</li>
+              <li>Generated structured prompt</li>
+              <li>Suggested reusable skills</li>
+              <li>Skill package ZIP files</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Navigation Behavior</h3>
+            <ul>
+              <li>Back button available on all screens</li>
+              <li>New Session resets complete flow</li>
+              <li>Toggle can hide/show sidebar anytime</li>
+            </ul>
+          </section>
+
+          <section>
+            <h3>Purpose of This Wireframe</h3>
+            <ul>
+              <li>Understand sequence quickly</li>
+              <li>Review where data is collected</li>
+              <li>Review where deliverables are produced</li>
+              <li>Use as blueprint before visual polish</li>
+            </ul>
+          </section>
+        </aside>
+        </div>
+      </div>
+    </div>
+    <script>
+      const fitWireframeToScreen = () => {
+        const viewport = document.getElementById("viewport");
+        const fitStage = document.getElementById("fitStage");
+        if (!viewport || !fitStage) return;
+
+        fitStage.style.transform = "scale(1)";
+        fitStage.style.left = "0px";
+        fitStage.style.top = "0px";
+
+        const contentWidth = fitStage.scrollWidth;
+        const contentHeight = fitStage.scrollHeight;
+        const maxWidth = viewport.clientWidth;
+        const maxHeight = viewport.clientHeight;
+
+        const scale = Math.min(maxWidth / contentWidth, maxHeight / contentHeight, 1);
+        const offsetX = (maxWidth - contentWidth * scale) / 2;
+        const offsetY = (maxHeight - contentHeight * scale) / 2;
+
+        fitStage.style.transform = `scale(${scale})`;
+        fitStage.style.left = `${Math.max(offsetX, 0)}px`;
+        fitStage.style.top = `${Math.max(offsetY, 0)}px`;
+      };
+
+      window.addEventListener("load", fitWireframeToScreen);
+      window.addEventListener("resize", fitWireframeToScreen);
+    </script>
+  </body>
+</html>
